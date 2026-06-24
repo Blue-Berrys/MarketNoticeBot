@@ -221,3 +221,13 @@ __marimo__/
 # Enterprise env file (secrets) and generated run reports
 .env.enterprise
 reports/
+
+# Personal holdings screenshots — never publish (sensitive)
+buy_sanfen/
+hold_png/
+.DS_Store
+
+# Weekly-bot runtime artifacts
+deep-output/
+weekly-deep-output/
+feishu.env
