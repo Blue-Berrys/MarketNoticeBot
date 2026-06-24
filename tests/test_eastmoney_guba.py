@@ -4,7 +4,10 @@ import json
 from urllib.error import HTTPError
 from unittest.mock import patch
 
-from tradingagents.dataflows.eastmoney_guba import fetch_eastmoney_guba_posts
+from tradingagents.dataflows.eastmoney_guba import (
+    VERIFIED_BARS,
+    fetch_eastmoney_guba_posts,
+)
 
 
 class _Response:
@@ -51,6 +54,49 @@ def test_unmapped_symbol_does_not_fall_back_to_generic_bar():
 
     assert "no verified dedicated Eastmoney bar mapping" in result
     assert "股市实战吧" not in result
+
+
+def test_verified_bars_cover_gap_assets_with_wellformed_entries():
+    # The HK index and the semiconductor index previously had no sentiment
+    # source at all; they must now resolve to a dedicated bar.
+    for symbol in ("^HSI", "931865.SS", "000688.SS"):
+        assert symbol in VERIFIED_BARS
+    for code, name in VERIFIED_BARS.values():
+        assert code and name
+        assert name.endswith("吧")
+        assert "股市实战吧" != name  # never the generic fallback
+
+
+def test_verified_bar_filters_out_foreign_posts_in_mixed_feed():
+    # 板块/ETF feeds can interleave other bars; only the expected bar is kept.
+    payload = {
+        "re": [
+            {
+                "stockbar_name": "半导体吧",
+                "post_title": "半导体板块今日走强",
+                "post_content": "关注国产替代进度。",
+                "post_publish_time": "2026-06-24 10:00:00",
+                "post_click_count": 88,
+                "post_comment_count": 5,
+            },
+            {
+                "stockbar_name": "光伏设备吧",
+                "post_title": "无关帖子",
+                "post_content": "应被过滤。",
+                "post_publish_time": "2026-06-24 10:01:00",
+                "post_click_count": 10,
+                "post_comment_count": 1,
+            },
+        ]
+    }
+    with patch(
+        "tradingagents.dataflows.eastmoney_guba.urlopen",
+        return_value=_Response(payload),
+    ):
+        result = fetch_eastmoney_guba_posts("931865.SS")
+
+    assert "半导体板块今日走强" in result
+    assert "无关帖子" not in result
 
 
 def test_transport_error_degrades_without_raising():

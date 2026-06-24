@@ -20,10 +20,23 @@ logger = logging.getLogger(__name__)
 _API = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist"
 _UA = "Mozilla/5.0 TradingAgents/0.2 public-community-reader"
 
-# Verified live on 2026-06-20. Add a mapping only after confirming the API's
-# ``stockbar_name`` is dedicated to that exact underlying index/security.
+# Verified live on 2026-06-24 by probing the API and confirming ``stockbar_name``.
+# Add a mapping only after confirming the API returns a dedicated bar (never the
+# generic ``股市实战吧`` fallback). Index bars are exact; ETF and 板块 (sector)
+# bars are dedicated retail communities for that exact exposure and are used as
+# the sentiment proxy where no native index bar exists (e.g. an HK/sector index).
+# Eastmoney has no dedicated bar for 恒生科技 (HSTECH) or 原油 (USO) — those stay
+# unmapped rather than misattributing a generic forum.
 VERIFIED_BARS: dict[str, tuple[str, str]] = {
+    # Native index bar.
     "000688.SS": ("zssh000688", "科创50吧"),
+    # Sector (板块) bar — dedicated semiconductor community, proxy for 中证半导体.
+    "931865.SS": ("BK1036", "半导体吧"),
+    # ETF bars — dedicated communities tracking the same underlying exposure.
+    "^HSI": ("159920", "恒生ETF吧"),
+    "SPY": ("513500", "标普500吧"),
+    "QQQ": ("513100", "纳指ETF吧"),
+    "GLD": ("159934", "黄金ETF吧"),
 }
 
 
