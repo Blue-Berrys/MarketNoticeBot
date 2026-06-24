@@ -153,6 +153,13 @@ def main() -> int:
     args = parse_args()
     if not os.environ.get("DEEPSEEK_API_KEY"):
         raise SystemExit("DEEPSEEK_API_KEY is not set")
+    try:
+        date.fromisoformat(args.date)
+    except ValueError:
+        raise SystemExit(
+            f"--date must be a valid YYYY-MM-DD, got {args.date!r}; "
+            "refusing to run the deep analysis with an invalid date"
+        ) from None
     max_workers = max(1, min(args.max_workers, 3))
     output_root = Path(args.output_dir).expanduser().resolve()
     output_root.mkdir(parents=True, exist_ok=True)

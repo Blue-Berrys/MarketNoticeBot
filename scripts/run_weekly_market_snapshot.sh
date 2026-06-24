@@ -16,18 +16,26 @@ run_weekly_report() {
   export HTTPS_PROXY="http://127.0.0.1:7897"
   export ALL_PROXY="socks5://127.0.0.1:7897"
 
-  local analysis_date
-  analysis_date="$(
-    "${REPO_DIR}/.venv/bin/python" -c \
-      'import yfinance as yf; print(yf.Ticker("QQQ").history(period="10d").index[-1].date())'
-  )"
-  local output_dir="${APP_DIR}/deep-output/${analysis_date}"
-  mkdir -p "${output_dir}"
-
+  # Build the snapshot first; it fetches dated rows from reliable CN-accessible
+  # sources (Sina/Tencent). Derive the analysis date from the snapshot itself
+  # instead of a separate, flaky yfinance call that can return an empty string
+  # at cron time and silently break the whole deep run (--date "").
+  local staging="${APP_DIR}/deep-output/snapshot.txt"
+  mkdir -p "${APP_DIR}/deep-output"
   "${REPO_DIR}/.venv/bin/python" scripts/weekly_market_snapshot.py \
     --config "${APP_DIR}/feishu.env" \
     --print-only \
-    --output "${output_dir}/snapshot.txt"
+    --output "${staging}"
+
+  local analysis_date
+  analysis_date="$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "${staging}" | head -1)"
+  if ! [[ "${analysis_date}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: could not derive analysis_date from snapshot; aborting" >&2
+    return 1
+  fi
+  local output_dir="${APP_DIR}/deep-output/${analysis_date}"
+  mkdir -p "${output_dir}"
+  mv "${staging}" "${output_dir}/snapshot.txt"
 
   local deep_status=0
   "${REPO_DIR}/.venv/bin/python" scripts/run_weekly_deep_analysis.py \

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 try:
@@ -25,6 +26,63 @@ def collect_report_material(summary: list[dict]) -> dict[str, str]:
         if path.exists():
             materials[item["label"]] = path.read_text(encoding="utf-8")
     return materials
+
+
+_OVERALL_RE = re.compile(
+    r"Overall Sentiment:\**\s*\**([^*\n(]+?)\**\s*\(Score:\s*([\d.]+)\s*/\s*10\)"
+)
+_CONFIDENCE_RE = re.compile(r"Confidence:\**\s*\**([A-Za-z一-鿿]+)")
+
+
+def extract_sentiment(report_text: str) -> str | None:
+    """Pull the structured sentiment header out of a per-asset deep report.
+
+    The multi-agent Sentiment Analyst emits a stable ``## sentiment_report``
+    block led by ``Overall Sentiment: X (Score: N/10)`` / ``Confidence: Y``.
+    Returns a compact Chinese one-liner, or ``None`` when no header is present.
+    """
+    section_match = re.search(
+        r"## sentiment_report\s*(.*?)(?:\n## |\Z)", report_text, re.DOTALL
+    )
+    section = section_match.group(1) if section_match else report_text
+    overall = _OVERALL_RE.search(section)
+    if not overall:
+        return None
+    label = overall.group(1).strip()
+    score = overall.group(2).strip()
+    confidence_match = _CONFIDENCE_RE.search(section)
+    confidence = confidence_match.group(1).strip() if confidence_match else "?"
+    return f"{label}（评分 {score}/10，可信度 {confidence}）"
+
+
+def collect_sentiment_lines(summary: list[dict]) -> list[str]:
+    """Build per-asset sentiment bullets from the multi-agent deep reports."""
+    lines: list[str] = []
+    for item in summary:
+        if item.get("status") != "ok" or not item.get("report"):
+            continue
+        path = Path(item["report"])
+        if not path.exists():
+            continue
+        sentiment = extract_sentiment(path.read_text(encoding="utf-8"))
+        if sentiment:
+            lines.append(
+                f"- **{item['label']}（{item['ticker']}）**：{sentiment}"
+            )
+    return lines
+
+
+def build_sentiment_section(summary: list[dict]) -> str:
+    """Render a deterministic sentiment-overview section, or empty string."""
+    lines = collect_sentiment_lines(summary)
+    if not lines:
+        return ""
+    return (
+        "\n\n## 十一、情绪面速览（多智能体）\n\n"
+        "> 来自 TradingAgents 情绪分析师，综合新闻 / StockTwits / Reddit / "
+        "东方财富股吧的散户情绪评分，仅作情绪温度参考，不是事实新闻。\n\n"
+        + "\n".join(lines)
+    )
 
 
 def _trim_report(text: str, limit: int = 10000) -> str:
@@ -116,6 +174,7 @@ def main() -> int:
     snapshot = Path(args.snapshot).read_text(encoding="utf-8")
     materials = collect_report_material(summary)
     report = synthesize(build_synthesis_prompt(snapshot, materials, args.date))
+    report += build_sentiment_section(summary)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(report + "\n", encoding="utf-8")
