@@ -25,8 +25,13 @@
 |---|---|---|---|
 | **轻量快照** | `scripts/weekly_market_snapshot.py` | 纯标准库，零 LLM | 价格/回撤/均线/倍数/宏观，秒级生成 |
 | **重型周报** | `scripts/run_weekly_deep_analysis.py` + `scripts/compile_weekly_learning_report.py` | 跑 TradingAgents 多智能体 + LLM 汇总 | 逐资产跑分析师团队（含情绪面），再由 LLM 汇总成中文学习日报，飞书卡片推送 |
+| **学习信（周六）** | `scripts/weekly_learning_letter.py` + `scripts/learning_syllabus.py` | 单次 LLM，零多智能体 | 面向零基础的每周金融学习信，固定大纲循序渐进 + 行情大事插播 |
 
-`scripts/run_weekly_market_snapshot.sh` 把两层串起来，供 cron 调用。
+`scripts/run_weekly_market_snapshot.sh`（周三）和 `scripts/run_weekly_learning_letter.sh`（周六）分别供 cron 调用。
+
+### 周六金融学习信
+
+一封写给「完全零基础」长期定投者的学习信，和周三的行情/决策报告分工：周三回答「现在怎么做」，周六回答「金融到底怎么运作」。约 52 周的固定大纲（`learning_syllabus.py`）循序渐进、不重复；遇到真实市场大事（某指数单周大跌或 VIX 飙升）时临时插播一期应景专题，且不消耗大纲进度。每期含：本周核心概念、用本周真实数据举例、术语卡、常见误区、历史小课堂、思考题（附答案）。进度记录在 `learning-progress.json`（运行时状态，不入库）。
 
 ## 数据源
 
@@ -67,7 +72,8 @@ python scripts/weekly_market_snapshot.py --config feishu.env --print-only
 确认无误后去掉 `--print-only` 即会推送飞书。设置每周定时（例：周三 08:00）：
 
 ```cron
-0 8 * * 3 /path/to/MarketNoticeBot/scripts/run_weekly_market_snapshot.sh
+0 8 * * 3 /path/to/MarketNoticeBot/scripts/run_weekly_market_snapshot.sh   # 周三 行情/决策
+0 8 * * 6 /path/to/MarketNoticeBot/scripts/run_weekly_learning_letter.sh   # 周六 学习信
 ```
 
 重型周报额外需要一个 LLM provider 的 API key（如 `DEEPSEEK_API_KEY`），见下游框架配置。
