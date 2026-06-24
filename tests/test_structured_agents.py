@@ -362,9 +362,12 @@ class TestSentimentAnalystAgent:
             )(_make_sentiment_state())
 
         prompt_text = "\n".join(str(message) for message in captured["prompt"])
-        assert "Chinese retail community" in prompt_text
-        assert "科创50吧：10 recent posts" in prompt_text
-        assert "community opinions are not factual news" in prompt_text
+        # str(message) renders newlines as the literal escape "\\n"; collapse
+        # those (and real whitespace) so assertions survive source line wrapping.
+        normalized = " ".join(prompt_text.replace("\\n", " ").split())
+        assert "Chinese retail community" in normalized
+        assert "科创50吧：10 recent posts" in normalized
+        assert "community opinions are not factual news" in normalized
 
     def test_falls_back_to_freetext_when_structured_unavailable(self):
         plain = "**Overall Sentiment:** **Bearish** (Score: 3.0/10)\n**Confidence:** Low\n\nLimited data."

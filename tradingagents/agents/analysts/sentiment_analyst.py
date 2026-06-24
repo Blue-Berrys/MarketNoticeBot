@@ -40,8 +40,8 @@ from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
-from tradingagents.dataflows.reddit import fetch_reddit_posts
 from tradingagents.dataflows.eastmoney_guba import fetch_eastmoney_guba_posts
+from tradingagents.dataflows.reddit import fetch_reddit_posts
 from tradingagents.dataflows.stocktwits import fetch_stocktwits_messages
 
 
