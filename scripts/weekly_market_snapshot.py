@@ -23,7 +23,6 @@ import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-
 ASSETS = {
     "QQQ": {
         "name": "纳指100",
@@ -149,7 +148,7 @@ def parse_yahoo_chart(payload: str) -> list[dict]:
     quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
     closes = quote.get("close") or []
     rows = []
-    for timestamp, close in zip(timestamps, closes):
+    for timestamp, close in zip(timestamps, closes, strict=False):
         if close is None:
             continue
         rows.append(
@@ -335,7 +334,7 @@ def fetch_macro(api_key: str | None) -> dict:
     return collect_macro(fetcher)
 
 
-def build_report(assets: list[dict], macro: dict) -> str:
+def build_report(assets: list[dict], macro: dict, valuation: dict | None = None) -> str:
     available = [asset for asset in assets if not asset.get("error")]
     report_date = max(
         (asset["date"] for asset in available),
@@ -368,26 +367,71 @@ def build_report(assets: list[dict], macro: dict) -> str:
         if spread is not None
         else "美债10Y-2Y利差：数据暂缺"
     )
+
+    if valuation:
+        lines.extend(["", "🌡️ 美股估值（标普500 · Shiller CAPE）"])
+        lines.append(
+            f"CAPE：{valuation['cape']:.1f}｜近10年分位 "
+            f"{valuation['cape_pct_10y']:.0f}%｜全历史分位 "
+            f"{valuation['cape_pct_all']:.0f}%｜{valuation['temperature']}"
+        )
+        if valuation.get("pe_ttm") is not None:
+            lines.append(
+                f"市盈率TTM：{valuation['pe_ttm']:.1f}｜近10年分位 "
+                f"{valuation['pe_pct_10y']:.0f}%"
+            )
+
     multipliers = [
         asset["multiplier"]
         for asset in available
         if asset["multiplier"] is not None
     ]
     maximum = max(multipliers, default=1)
+
+    if valuation:
+        sell_line = (
+            "🚦 减仓触发：否（机械规则不自动减仓）。美股 Shiller CAPE 近10年分位 "
+            f"{valuation['cape_pct_10y']:.0f}%（{valuation['temperature']}）——"
+            "即使估值偏高，仍需叠加“狂热”信号才构成“极端估值 + 狂热”双重确认，"
+            "单一高估值不触发减仓。"
+        )
+        gauge_line = (
+            "📚 口径：美股估值用标普500 Shiller CAPE（multpl，含历史分位）；"
+            "纳指/港股/中国指数暂无可靠免费历史PE源，仍以价格回撤为温度代理。"
+            "价格用美国上市 ETF 与官方指数，不使用可能带溢价的境内场内基金。"
+        )
+    else:
+        sell_line = (
+            "🚦 减仓触发：否。本周估值分位数据暂缺，"
+            "缺少“极端估值 + 狂热”双重确认；价格偏热本身不构成卖出条件。"
+        )
+        gauge_line = (
+            "📚 口径：使用美国上市 QQQ/SPY/GLD/USO、恒生/恒生科技"
+            "及中国科技/半导体直接指数；MU/SNDK仅作产业观察，"
+            "不使用可能带溢价的境内场内代理基金。"
+        )
+
     lines.extend(
         [
             "",
             f"💰 本周规则：最高加码档 {maximum}x。倍数只作用于对应资产，"
             "不是把整笔 ¥500 全部放大；仍按股债商框架执行，并设置每周总额上限。",
-            "🚦 减仓触发：否。当前快照没有可靠的历史估值分位，"
-            "缺少“极端估值 + 狂热”双重确认；价格偏热本身不构成卖出条件。",
-            "📚 口径：使用美国上市 QQQ/SPY/GLD/USO、恒生/恒生科技"
-            "及中国科技/半导体直接指数；MU/SNDK仅作产业观察，"
-            "不使用可能带溢价的境内场内代理基金。",
+            sell_line,
+            gauge_line,
             "仅作长期学习与机械定投参考，不构成投资建议。",
         ]
     )
     return "\n".join(lines)
+
+
+def fetch_valuation() -> dict | None:
+    """Best-effort S&P 500 valuation percentile; never raises."""
+    try:
+        from tradingagents.dataflows.valuation import sp500_valuation
+
+        return sp500_valuation()
+    except Exception:
+        return None
 
 
 def load_env_file(path: str | os.PathLike) -> dict[str, str]:
@@ -434,7 +478,7 @@ def markdown_tables_to_lines(text: str) -> str:
                     break
                 details = "｜".join(
                     f"{header}：{value}"
-                    for header, value in zip(headers[1:], values[1:])
+                    for header, value in zip(headers[1:], values[1:], strict=False)
                 )
                 converted.append(f"- **{values[0]}**")
                 if details:
@@ -574,7 +618,7 @@ def generate_report(fred_api_key: str | None = None) -> str:
                     "error": f"{type(exc).__name__}: {exc}",
                 }
             )
-    return build_report(snapshots, fetch_macro(fred_api_key))
+    return build_report(snapshots, fetch_macro(fred_api_key), fetch_valuation())
 
 
 def main() -> int:

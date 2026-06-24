@@ -41,6 +41,7 @@
 - 恒生 / 恒生科技 / 科创50 → 腾讯行情
 - 中证半导体等指数 → 中证指数官方接口（见 `tradingagents/dataflows/direct_index_data.py`）
 - 宏观（DGS10/DGS2/VIX）→ FRED（无 key 走 CSV 接口，可选 `FRED_API_KEY`）
+- 估值（标普500 Shiller CAPE / TTM PE + 历史分位）→ multpl.com（`valuation.py`；纳指/港股/中国指数暂无可靠免费历史 PE 源，仍以价格回撤为温度代理）
 - 情绪面 → 新闻 + StockTwits + Reddit + 已验证的东方财富股吧（`tradingagents/dataflows/eastmoney_guba.py`）
 
 ## 快速开始
