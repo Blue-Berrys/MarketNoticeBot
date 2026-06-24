@@ -11,8 +11,8 @@ from scripts.weekly_market_snapshot import (
     build_report,
     choose_dca_multiplier,
     collect_macro,
-    parse_sina_jsonp,
     parse_fred_csv,
+    parse_sina_jsonp,
     parse_tencent_kline,
 )
 

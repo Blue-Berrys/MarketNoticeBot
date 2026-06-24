@@ -13,7 +13,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-
 ASSETS = {
     "美国科技": {"ticker": "QQQ", "dca_eligible": True},
     "美国大盘": {"ticker": "SPY", "dca_eligible": True},

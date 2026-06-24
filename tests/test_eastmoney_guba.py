@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from urllib.error import HTTPError
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from tradingagents.dataflows.eastmoney_guba import (
     VERIFIED_BARS,
@@ -64,7 +64,7 @@ def test_verified_bars_cover_gap_assets_with_wellformed_entries():
     for code, name in VERIFIED_BARS.values():
         assert code and name
         assert name.endswith("吧")
-        assert "股市实战吧" != name  # never the generic fallback
+        assert name != "股市实战吧"  # never the generic fallback
 
 
 def test_verified_bar_filters_out_foreign_posts_in_mixed_feed():
