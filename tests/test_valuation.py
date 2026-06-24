@@ -77,5 +77,40 @@ class Sp500ValuationTests(unittest.TestCase):
         self.assertNotIn("pe_ttm", result)
 
 
+class FunddbValuationTests(unittest.TestCase):
+    _PAYLOAD = {
+        "data": {
+            "right_list": [
+                {"gu_code": "NDX.GI", "gu_name": "纳斯达克100",
+                 "gu_pe": "34.80", "gu_pe_current_perent": "71.99"},
+                {"gu_code": "HSTECH.HI", "gu_name": "恒生科技指数",
+                 "gu_pe": "21.70", "gu_pe_current_perent": "21.25"},
+                {"gu_code": "h30184.CSI", "gu_name": "中证全指半导体",
+                 "gu_pe": "165.95", "gu_pe_current_perent": "99.96"},
+                {"gu_code": "UNRELATED", "gu_name": "无关",
+                 "gu_pe": "1", "gu_pe_current_perent": "1"},
+            ]
+        }
+    }
+
+    def test_maps_codes_to_snapshot_symbols(self):
+        class _Resp:
+            def read(self_inner):
+                import json as _json
+                return _json.dumps(FunddbValuationTests._PAYLOAD).encode()
+
+        with patch("urllib.request.urlopen", return_value=_Resp()):
+            result = valuation.fetch_funddb_index_valuations()
+
+        self.assertEqual(result["QQQ"]["pe_pct"], 71.99)
+        self.assertEqual(result["HSTECH"]["pe"], 21.70)
+        self.assertEqual(result["SEMICONDUCTOR"]["pe_pct"], 99.96)
+        self.assertNotIn("SPY", result)  # SPX.GI absent from this payload
+
+    def test_returns_empty_dict_on_failure(self):
+        with patch("urllib.request.urlopen", side_effect=OSError("down")):
+            self.assertEqual(valuation.fetch_funddb_index_valuations(), {})
+
+
 if __name__ == "__main__":
     unittest.main()

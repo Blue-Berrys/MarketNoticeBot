@@ -14,6 +14,7 @@ any transport or parse failure so the weekly snapshot never breaks.
 from __future__ import annotations
 
 import bisect
+import json
 import re
 import urllib.request
 
@@ -96,3 +97,50 @@ def sp500_valuation(timeout: int = 20) -> dict | None:
         result["pe_ttm"] = pe_values[0]
         result["pe_pct_10y"] = percentile_rank(pe_values[:_MONTHS_10Y], pe_values[0])
     return result
+
+
+# --- Per-index PE percentile (韭圈儿/funddb) --------------------------------
+# funddb exposes a current PE plus a precomputed historical percentile for a
+# broad list of indices, including overseas ones that danjuan/xueqiu wall off.
+# It needs no login (unlike danjuan). Maps snapshot symbols -> funddb gu_code;
+# 中证全指半导体 (h30184) is the valuation proxy for the 931865 exposure.
+_FUNDDB_URL = "https://api.jiucaishuo.com/v2/guzhi/showcategory"
+INDEX_FUNDDB_CODES: dict[str, str] = {
+    "QQQ": "NDX.GI",
+    "SPY": "SPX.GI",
+    "HSI": "HSI.HI",
+    "HSTECH": "HSTECH.HI",
+    "STAR50": "000688.SH",
+    "SEMICONDUCTOR": "h30184.CSI",
+}
+
+
+def fetch_funddb_index_valuations(timeout: int = 15) -> dict[str, dict]:
+    """Return {snapshot_symbol: {name, pe, pe_pct}} from funddb; {} on failure."""
+    try:
+        request = urllib.request.Request(
+            _FUNDDB_URL,
+            data=b"{}",
+            headers={"Content-Type": "application/json", "User-Agent": _UA},
+        )
+        payload = json.loads(urllib.request.urlopen(request, timeout=timeout).read())
+    except Exception:
+        return {}
+
+    rows = (((payload or {}).get("data") or {}).get("right_list")) or []
+    by_code = {row.get("gu_code"): row for row in rows if isinstance(row, dict)}
+
+    out: dict[str, dict] = {}
+    for symbol, code in INDEX_FUNDDB_CODES.items():
+        row = by_code.get(code)
+        if not row:
+            continue
+        try:
+            out[symbol] = {
+                "name": row.get("gu_name"),
+                "pe": float(row["gu_pe"]),
+                "pe_pct": float(row["gu_pe_current_perent"]),
+            }
+        except (TypeError, ValueError, KeyError):
+            continue
+    return out

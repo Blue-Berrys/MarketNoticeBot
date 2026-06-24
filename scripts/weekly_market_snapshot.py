@@ -334,12 +334,18 @@ def fetch_macro(api_key: str | None) -> dict:
     return collect_macro(fetcher)
 
 
-def build_report(assets: list[dict], macro: dict, valuation: dict | None = None) -> str:
+def build_report(
+    assets: list[dict],
+    macro: dict,
+    valuation: dict | None = None,
+    index_valuations: dict | None = None,
+) -> str:
     available = [asset for asset in assets if not asset.get("error")]
     report_date = max(
         (asset["date"] for asset in available),
         default=date.today().isoformat(),
     )
+    index_valuations = index_valuations or {}
     lines = [f"📊 每周长期定投快照 · {report_date}", ""]
     for asset in assets:
         if asset.get("error"):
@@ -353,10 +359,17 @@ def build_report(assets: list[dict], macro: dict, valuation: dict | None = None)
             if asset["multiplier"] is not None
             else "观察项，不计算定投倍数"
         )
+        valuation_row = index_valuations.get(asset["symbol"])
+        valuation_suffix = (
+            f"｜估值分位 {valuation_row['pe_pct']:.0f}%"
+            if valuation_row
+            else ""
+        )
         lines.append(
             f"{asset['name']} {asset['symbol']}：距52周高点 "
             f"{asset['drawdown_52w']:+.1%}｜较200日线 "
             f"{asset['vs_sma200']:+.1%}｜{asset['temperature']}｜{suffix}"
+            f"{valuation_suffix}"
         )
     vix = macro.get("vix")
     spread = macro.get("yield_spread")
@@ -395,16 +408,35 @@ def build_report(assets: list[dict], macro: dict, valuation: dict | None = None)
             "即使估值偏高，仍需叠加“狂热”信号才构成“极端估值 + 狂热”双重确认，"
             "单一高估值不触发减仓。"
         )
-        gauge_line = (
-            "📚 口径：美股估值用标普500 Shiller CAPE（multpl，含历史分位）；"
-            "纳指/港股/中国指数暂无可靠免费历史PE源，仍以价格回撤为温度代理。"
-            "价格用美国上市 ETF 与官方指数，不使用可能带溢价的境内场内基金。"
+    elif index_valuations:
+        top_symbol = max(
+            index_valuations,
+            key=lambda symbol: index_valuations[symbol]["pe_pct"],
+        )
+        top = index_valuations[top_symbol]
+        sell_line = (
+            "🚦 减仓触发：否（机械规则不自动减仓）。当前估值分位最高："
+            f"{top['name']} {top['pe_pct']:.0f}%——即使估值极高，仍需叠加“狂热”"
+            "信号才构成“极端估值 + 狂热”双重确认，单一高估值不触发减仓。"
         )
     else:
         sell_line = (
             "🚦 减仓触发：否。本周估值分位数据暂缺，"
             "缺少“极端估值 + 狂热”双重确认；价格偏热本身不构成卖出条件。"
         )
+
+    valuation_sources = []
+    if valuation:
+        valuation_sources.append("标普500 Shiller CAPE（multpl）")
+    if index_valuations:
+        valuation_sources.append("各指数 PE 历史分位（韭圈儿/funddb）")
+    if valuation_sources:
+        gauge_line = (
+            "📚 口径：估值用" + "、".join(valuation_sources) + "；"
+            "黄金/原油/个股无PE，仍以价格回撤为温度代理。"
+            "价格用美国上市 ETF 与官方指数，不使用可能带溢价的境内场内基金。"
+        )
+    else:
         gauge_line = (
             "📚 口径：使用美国上市 QQQ/SPY/GLD/USO、恒生/恒生科技"
             "及中国科技/半导体直接指数；MU/SNDK仅作产业观察，"
@@ -432,6 +464,16 @@ def fetch_valuation() -> dict | None:
         return sp500_valuation()
     except Exception:
         return None
+
+
+def fetch_index_valuations() -> dict:
+    """Best-effort per-index PE percentile (funddb); never raises."""
+    try:
+        from tradingagents.dataflows.valuation import fetch_funddb_index_valuations
+
+        return fetch_funddb_index_valuations()
+    except Exception:
+        return {}
 
 
 def load_env_file(path: str | os.PathLike) -> dict[str, str]:
@@ -618,7 +660,12 @@ def generate_report(fred_api_key: str | None = None) -> str:
                     "error": f"{type(exc).__name__}: {exc}",
                 }
             )
-    return build_report(snapshots, fetch_macro(fred_api_key), fetch_valuation())
+    return build_report(
+        snapshots,
+        fetch_macro(fred_api_key),
+        fetch_valuation(),
+        fetch_index_valuations(),
+    )
 
 
 def main() -> int:
