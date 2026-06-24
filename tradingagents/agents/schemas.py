@@ -283,7 +283,9 @@ class SentimentReport(BaseModel):
             "Confidence in the assessment based on data quality and sample size. "
             "Use 'low' when one or more sources returned a placeholder or fewer "
             "than 5 data points; 'medium' when data is present but sparse; "
-            "'high' when all three sources returned substantive data."
+            "'high' only when all available source categories returned substantive "
+            "data. For Chinese-market instruments, missing Xueqiu/Weibo prevents "
+            "a high-confidence rating."
         ),
     )
     narrative: str = Field(

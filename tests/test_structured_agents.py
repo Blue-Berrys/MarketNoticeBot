@@ -7,7 +7,7 @@ behavior we added for the Trader, Research Manager, and Sentiment Analyst
 so they share the same deterministic output shape.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -341,6 +341,30 @@ class TestSentimentAnalystAgent:
         captured = {}
         create_sentiment_analyst(_structured_sentiment_llm(captured))(_make_sentiment_state())
         assert any("NVDA" in str(m) for m in captured["prompt"])
+
+    def test_prompt_contains_chinese_community_source(self):
+        captured = {}
+        with patch(
+            "tradingagents.agents.analysts.sentiment_analyst.get_news.func",
+            return_value="news",
+        ), patch(
+            "tradingagents.agents.analysts.sentiment_analyst.fetch_stocktwits_messages",
+            return_value="stocktwits",
+        ), patch(
+            "tradingagents.agents.analysts.sentiment_analyst.fetch_reddit_posts",
+            return_value="reddit",
+        ), patch(
+            "tradingagents.agents.analysts.sentiment_analyst.fetch_eastmoney_guba_posts",
+            return_value="科创50吧：10 recent posts",
+        ):
+            create_sentiment_analyst(
+                _structured_sentiment_llm(captured)
+            )(_make_sentiment_state())
+
+        prompt_text = "\n".join(str(message) for message in captured["prompt"])
+        assert "Chinese retail community" in prompt_text
+        assert "科创50吧：10 recent posts" in prompt_text
+        assert "community opinions are not factual news" in prompt_text
 
     def test_falls_back_to_freetext_when_structured_unavailable(self):
         plain = "**Overall Sentiment:** **Bearish** (Score: 3.0/10)\n**Confidence:** Low\n\nLimited data."

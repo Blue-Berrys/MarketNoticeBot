@@ -5,6 +5,7 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
+from .direct_index_data import fetch_direct_index_ohlcv, get_direct_index_spec
 from .stockstats_utils import (
     StockstatsUtils,
     _assert_ohlcv_not_stale,
@@ -26,13 +27,16 @@ def get_YFin_data_online(
 
     # Resolve broker/forex symbols to Yahoo's convention (XAUUSD+ -> GC=F).
     canonical = normalize_symbol(symbol)
-    ticker = yf.Ticker(canonical)
+    if get_direct_index_spec(canonical):
+        data = fetch_direct_index_ohlcv(canonical, start_date, end_date)
+    else:
+        ticker = yf.Ticker(canonical)
 
-    # yfinance treats ``end`` as EXCLUSIVE, so it would drop the requested
-    # end_date row (and the current day when end_date is today). Request one day
-    # past end_date so the requested range is actually inclusive (#986/#987).
-    end_inclusive = (end_dt + relativedelta(days=1)).strftime("%Y-%m-%d")
-    data = yf_retry(lambda: ticker.history(start=start_date, end=end_inclusive))
+        # yfinance treats ``end`` as EXCLUSIVE, so it would drop the requested
+        # end_date row (and the current day when end_date is today). Request one day
+        # past end_date so the requested range is actually inclusive (#986/#987).
+        end_inclusive = (end_dt + relativedelta(days=1)).strftime("%Y-%m-%d")
+        data = yf_retry(lambda: ticker.history(start=start_date, end=end_inclusive))
 
     # Empty result means the symbol is unknown/delisted. Raise a typed error
     # instead of returning prose: the routing layer turns it into a single

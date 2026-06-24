@@ -9,6 +9,7 @@ from stockstats import wrap
 from yfinance.exceptions import YFRateLimitError
 
 from .config import get_config
+from .direct_index_data import fetch_direct_index_ohlcv, get_direct_index_spec
 from .symbol_utils import NoMarketDataError, normalize_symbol
 from .utils import safe_ticker_component
 
@@ -148,9 +149,11 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     end_str = (today_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
     os.makedirs(config["data_cache_dir"], exist_ok=True)
+    direct_spec = get_direct_index_spec(canonical)
+    source_tag = "DirectIndex" if direct_spec else "YFin"
     data_file = os.path.join(
         config["data_cache_dir"],
-        f"{safe_symbol}-YFin-data-{start_str}-{end_str}.csv",
+        f"{safe_symbol}-{source_tag}-data-{start_str}-{end_str}.csv",
     )
 
     # A cached file may be empty if a prior fetch failed (unknown symbol,
@@ -163,15 +166,21 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
             data = cached
 
     if data is None:
-        downloaded = yf_retry(lambda: yf.download(
-            canonical,
-            start=start_str,
-            end=end_str,
-            multi_level_index=False,
-            progress=False,
-            auto_adjust=True,
-        ))
-        downloaded = _ensure_date_column(downloaded.reset_index())
+        if direct_spec:
+            downloaded = fetch_direct_index_ohlcv(
+                canonical, start_str, end_str
+            ).reset_index()
+        else:
+            downloaded = yf_retry(lambda: yf.download(
+                canonical,
+                start=start_str,
+                end=end_str,
+                multi_level_index=False,
+                progress=False,
+                auto_adjust=True,
+            ))
+            downloaded = downloaded.reset_index()
+        downloaded = _ensure_date_column(downloaded)
         # Only cache real data — never persist an empty frame.
         if downloaded.empty or "Close" not in downloaded.columns:
             raise NoMarketDataError(
