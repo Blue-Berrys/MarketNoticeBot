@@ -60,6 +60,12 @@ ASSETS = {
         "source_symbol": "USO",
         "dca_eligible": True,
     },
+    "TLT": {
+        "name": "美债20年",
+        "provider": "sina",
+        "source_symbol": "TLT",
+        "dca_eligible": True,
+    },
     "STAR50": {
         "name": "科创50",
         "provider": "tencent",
@@ -305,7 +311,7 @@ def fetch_fred_keyless(series_id: str) -> float | None:
 
 def collect_macro(fetcher) -> dict:
     values = {}
-    for series_id in ("DGS10", "DGS2", "VIXCLS"):
+    for series_id in ("DGS10", "DGS2", "VIXCLS", "BAMLH0A0HYM2", "DEXCHUS"):
         try:
             values[series_id] = fetcher(series_id)
         except Exception:
@@ -319,6 +325,8 @@ def collect_macro(fetcher) -> dict:
             if ten_year is not None and two_year is not None
             else None
         ),
+        "credit_spread": values["BAMLH0A0HYM2"],
+        "usdcny": values["DEXCHUS"],
     }
 
 
@@ -360,11 +368,14 @@ def build_report(
             else "观察项，不计算定投倍数"
         )
         valuation_row = index_valuations.get(asset["symbol"])
-        valuation_suffix = (
-            f"｜估值分位 {valuation_row['pe_pct']:.0f}%"
-            if valuation_row
-            else ""
-        )
+        valuation_suffix = ""
+        if valuation_row:
+            parts = [f"PE分位{valuation_row['pe_pct']:.0f}%"]
+            if valuation_row.get("pb_pct") is not None:
+                parts.append(f"PB分位{valuation_row['pb_pct']:.0f}%")
+            if valuation_row.get("dividend"):
+                parts.append(f"股息{valuation_row['dividend']:.1f}%")
+            valuation_suffix = "｜" + " ".join(parts)
         lines.append(
             f"{asset['name']} {asset['symbol']}：距52周高点 "
             f"{asset['drawdown_52w']:+.1%}｜较200日线 "
@@ -373,12 +384,24 @@ def build_report(
         )
     vix = macro.get("vix")
     spread = macro.get("yield_spread")
+    credit = macro.get("credit_spread")
+    usdcny = macro.get("usdcny")
     lines.extend(["", "🌍 宏观慢变量"])
     lines.append(f"VIX：{vix:.1f}" if vix is not None else "VIX：数据暂缺")
     lines.append(
         f"美债10Y-2Y利差：{spread:+.2f}%"
         if spread is not None
         else "美债10Y-2Y利差：数据暂缺"
+    )
+    lines.append(
+        f"信用利差(高收益债OAS)：{credit:.2f}%"
+        if credit is not None
+        else "信用利差(高收益债OAS)：数据暂缺"
+    )
+    lines.append(
+        f"美元/人民币：{usdcny:.2f}"
+        if usdcny is not None
+        else "美元/人民币：数据暂缺"
     )
 
     if valuation:

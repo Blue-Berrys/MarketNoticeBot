@@ -158,7 +158,12 @@ class WeeklyMarketSnapshotTests(unittest.TestCase):
 
         self.assertEqual(
             collect_macro(failing_fetcher),
-            {"vix": 18.4, "yield_spread": None},
+            {
+                "vix": 18.4,
+                "yield_spread": None,
+                "credit_spread": None,
+                "usdcny": None,
+            },
         )
 
     def test_fred_uses_keyless_csv_before_keyed_api(self):
@@ -173,6 +178,8 @@ class WeeklyMarketSnapshotTests(unittest.TestCase):
                 "DGS10": 4.49,
                 "DGS2": 4.20,
                 "VIXCLS": 18.44,
+                "BAMLH0A0HYM2": 2.71,
+                "DEXCHUS": 6.77,
             }[series_id],
         ):
             result = snapshot_module.fetch_macro("configured-key")
@@ -180,6 +187,8 @@ class WeeklyMarketSnapshotTests(unittest.TestCase):
         keyed_fetch.assert_not_called()
         self.assertEqual(result["vix"], 18.44)
         self.assertAlmostEqual(result["yield_spread"], 0.29)
+        self.assertEqual(result["credit_spread"], 2.71)
+        self.assertEqual(result["usdcny"], 6.77)
 
     def test_fred_keyless_failure_falls_back_to_keyed_api(self):
         with patch.object(
@@ -193,6 +202,8 @@ class WeeklyMarketSnapshotTests(unittest.TestCase):
                 "DGS10": 4.49,
                 "DGS2": 4.20,
                 "VIXCLS": 18.44,
+                "BAMLH0A0HYM2": 2.71,
+                "DEXCHUS": 6.77,
             }[series_id],
         ):
             result = snapshot_module.fetch_macro("configured-key")

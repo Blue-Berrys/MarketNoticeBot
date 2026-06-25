@@ -14,6 +14,7 @@ any transport or parse failure so the weekly snapshot never breaks.
 from __future__ import annotations
 
 import bisect
+import contextlib
 import json
 import re
 import urllib.request
@@ -136,11 +137,20 @@ def fetch_funddb_index_valuations(timeout: int = 15) -> dict[str, dict]:
         if not row:
             continue
         try:
-            out[symbol] = {
+            entry = {
                 "name": row.get("gu_name"),
                 "pe": float(row["gu_pe"]),
                 "pe_pct": float(row["gu_pe_current_perent"]),
             }
         except (TypeError, ValueError, KeyError):
-            continue
+            continue  # PE percentile is the anchor; skip if it is missing
+        # PB percentile and dividend yield are optional enrichments.
+        for key, field in (
+            ("pb", "gu_pb"),
+            ("pb_pct", "gu_pb_current_perent"),
+            ("dividend", "gu_xilv"),
+        ):
+            with contextlib.suppress(TypeError, ValueError, KeyError):
+                entry[key] = float(row[field])
+        out[symbol] = entry
     return out

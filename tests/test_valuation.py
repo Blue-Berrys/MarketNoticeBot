@@ -82,7 +82,9 @@ class FunddbValuationTests(unittest.TestCase):
         "data": {
             "right_list": [
                 {"gu_code": "NDX.GI", "gu_name": "纳斯达克100",
-                 "gu_pe": "34.80", "gu_pe_current_perent": "71.99"},
+                 "gu_pe": "34.80", "gu_pe_current_perent": "71.99",
+                 "gu_pb": "7.36", "gu_pb_current_perent": "51.82",
+                 "gu_xilv": "0.44"},
                 {"gu_code": "HSTECH.HI", "gu_name": "恒生科技指数",
                  "gu_pe": "21.70", "gu_pe_current_perent": "21.25"},
                 {"gu_code": "h30184.CSI", "gu_name": "中证全指半导体",
@@ -103,7 +105,10 @@ class FunddbValuationTests(unittest.TestCase):
             result = valuation.fetch_funddb_index_valuations()
 
         self.assertEqual(result["QQQ"]["pe_pct"], 71.99)
+        self.assertEqual(result["QQQ"]["pb_pct"], 51.82)
+        self.assertEqual(result["QQQ"]["dividend"], 0.44)
         self.assertEqual(result["HSTECH"]["pe"], 21.70)
+        self.assertNotIn("pb_pct", result["HSTECH"])  # PB absent -> field skipped
         self.assertEqual(result["SEMICONDUCTOR"]["pe_pct"], 99.96)
         self.assertNotIn("SPY", result)  # SPX.GI absent from this payload
 
